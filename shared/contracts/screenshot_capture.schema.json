@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "screenshot_capture",
+  "title": "ScreenshotCapture",
+  "type": "object",
+  "required": ["id", "timestamp", "path"],
+  "properties": {
+    "id": { "type": "string" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "path": { "type": "string" },
+    "analysis_summary": { "type": "string" }
+  }
+}

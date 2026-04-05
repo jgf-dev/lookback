@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "voice_entry",
+  "title": "VoiceEntry",
+  "type": "object",
+  "required": ["id", "timestamp", "transcript"],
+  "properties": {
+    "id": { "type": "string" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "transcript": { "type": "string" },
+    "source": { "type": "string", "default": "microphone" }
+  }
+}

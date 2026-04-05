@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "day_review",
+  "title": "DayReview",
+  "type": "object",
+  "required": ["date", "highlights", "open_questions"],
+  "properties": {
+    "date": { "type": "string", "format": "date" },
+    "highlights": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "open_questions": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "actions": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

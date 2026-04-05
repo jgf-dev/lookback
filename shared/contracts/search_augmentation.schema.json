@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "search_augmentation",
+  "title": "SearchAugmentation",
+  "type": "object",
+  "required": ["id", "timestamp", "query", "snippets"],
+  "properties": {
+    "id": { "type": "string" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "query": { "type": "string" },
+    "snippets": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

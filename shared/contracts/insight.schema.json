@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "insight",
+  "title": "Insight",
+  "type": "object",
+  "required": ["id", "timestamp", "title", "details"],
+  "properties": {
+    "id": { "type": "string" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "title": { "type": "string" },
+    "details": { "type": "string" },
+    "related_event_ids": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}
