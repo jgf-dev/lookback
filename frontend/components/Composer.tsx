@@ -3,6 +3,17 @@
 import { useState } from 'react'
 import { addEntry } from '@/lib/api'
 
+/**
+ * UI component for creating a manual timeline entry with optional project and task labels.
+ *
+ * The component renders inputs for project and task, a textarea for the entry content, and a button
+ * that saves the entry. Saving is ignored when the content is empty or only whitespace; on save it
+ * calls `addEntry({ source: 'manual', content, project, task })`, clears the content field, and
+ * invokes the provided `onSaved` callback.
+ *
+ * @param onSaved - Callback invoked after a successful save to notify parent components
+ * @returns The JSX element containing the composer UI (project/task inputs, content textarea, and save button)
+ */
 export function Composer({ onSaved }: { onSaved: () => void }) {
   const [content, setContent] = useState('')
   const [project, setProject] = useState('')

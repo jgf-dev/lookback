@@ -5,6 +5,14 @@ import { Composer } from '@/components/Composer'
 import { generateInsights, timeline } from '@/lib/api'
 import { Entry, Insight } from '@/types'
 
+/**
+ * Render the "Lookback — Rolling Day Canvas" page and manage its timeline and insights state.
+ *
+ * Initializes `entries` and `insights`, fetches the timeline on mount, and provides UI controls
+ * (Composer, Refresh Timeline, Generate Insights) along with Timeline and Insights lists.
+ *
+ * @returns The rendered HomePage React element
+ */
 export default function HomePage() {
   const [entries, setEntries] = useState<Entry[]>([])
   const [insights, setInsights] = useState<Insight[]>([])

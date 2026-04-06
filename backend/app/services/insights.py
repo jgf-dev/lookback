@@ -9,6 +9,15 @@ from app.db.models import Entry, Insight
 
 
 def generate_insights(session: Session) -> list[Insight]:
+    """
+    Create and persist Insight records summarizing the top project and top capture source derived from Entry rows.
+    
+    Parameters:
+        session (Session): Active database session used to query Entry rows and persist created Insight instances.
+    
+    Returns:
+        list[Insight]: Created Insight objects persisted to the database; returns an empty list if no Entry rows exist.
+    """
     entries = session.exec(select(Entry)).all()
     if not entries:
         return []
@@ -46,6 +55,15 @@ def generate_insights(session: Session) -> list[Insight]:
 
 
 def safe_metadata(meta: dict | None) -> str | None:
+    """
+    Serialize a metadata dictionary to a JSON string when metadata is provided.
+    
+    Parameters:
+    	meta (dict | None): Metadata to serialize; if `None` or empty, no serialization is performed.
+    
+    Returns:
+    	A JSON-formatted string of `meta`, or `None` if `meta` is `None` or empty.
+    """
     if not meta:
         return None
     return json.dumps(meta, ensure_ascii=False)
