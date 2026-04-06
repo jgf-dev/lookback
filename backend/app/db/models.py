@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional
 
 from sqlmodel import Field, SQLModel
@@ -26,6 +26,6 @@ class Insight(SQLModel, table=True):
 
 class DailySummary(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    date: str = Field(index=True, unique=True)
+    date: date = Field(index=True, unique=True)
     summary_markdown: str
     reviewed_with_user: bool = False

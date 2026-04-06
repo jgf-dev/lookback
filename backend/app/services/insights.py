@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from collections import Counter
+from datetime import datetime
 
 from sqlmodel import Session, select
 
@@ -11,16 +12,33 @@ from app.db.models import Entry, Insight
 def generate_insights(session: Session) -> list[Insight]:
     """
     Create and persist Insight records summarizing the top project and top capture source derived from Entry rows.
-    
+
     Parameters:
         session (Session): Active database session used to query Entry rows and persist created Insight instances.
-    
+
     Returns:
         list[Insight]: Created Insight objects persisted to the database; returns an empty list if no Entry rows exist.
     """
-    entries = session.exec(select(Entry)).all()
+    now = datetime.utcnow()
+    today = now.date()
+    today_start = datetime(today.year, today.month, today.day, 0, 0, 0)
+    today_end = datetime(today.year, today.month, today.day, 23, 59, 59, 999999)
+
+    entries = session.exec(
+        select(Entry)
+        .where(Entry.created_at >= today_start, Entry.created_at <= today_end)
+    ).all()
     if not entries:
         return []
+
+    # Delete existing insights for today to make this operation idempotent
+    existing_insights = session.exec(
+        select(Insight)
+        .where(Insight.created_at >= today_start, Insight.created_at <= today_end)
+    ).all()
+    for existing in existing_insights:
+        session.delete(existing)
+    session.commit()
 
     project_counter = Counter((e.project or 'General') for e in entries)
     source_counter = Counter(e.source for e in entries)

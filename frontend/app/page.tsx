@@ -16,8 +16,21 @@ import { Entry, Insight } from '@/types'
 export default function HomePage() {
   const [entries, setEntries] = useState<Entry[]>([])
   const [insights, setInsights] = useState<Insight[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const refresh = async () => setEntries(await timeline())
+  const refresh = async () => {
+    setIsLoading(true)
+    setError(null)
+    try {
+      setEntries(await timeline())
+    } catch (err) {
+      setError('Failed to load timeline. Please try again.')
+      console.error('Timeline error:', err)
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   useEffect(() => {
     refresh()
@@ -33,11 +46,31 @@ export default function HomePage() {
 
       <Composer onSaved={refresh} />
 
+      {error && <div className="card" style={{ color: '#ef4444' }}>{error}</div>}
+
       <div className="card">
         <h3>Actions</h3>
         <div className="row">
-          <button onClick={refresh}>Refresh Timeline</button>
-          <button onClick={async () => setInsights(await generateInsights())}>Generate Insights</button>
+          <button onClick={refresh} disabled={isLoading}>
+            {isLoading ? 'Loading...' : 'Refresh Timeline'}
+          </button>
+          <button
+            onClick={async () => {
+              setIsLoading(true)
+              setError(null)
+              try {
+                setInsights(await generateInsights())
+              } catch (err) {
+                setError('Failed to generate insights. Please try again.')
+                console.error('Insights error:', err)
+              } finally {
+                setIsLoading(false)
+              }
+            }}
+            disabled={isLoading}
+          >
+            Generate Insights
+          </button>
         </div>
       </div>
 

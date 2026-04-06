@@ -18,12 +18,20 @@ export function Composer({ onSaved }: { onSaved: () => void }) {
   const [content, setContent] = useState('')
   const [project, setProject] = useState('')
   const [task, setTask] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
 
   const save = async () => {
-    if (!content.trim()) return
-    await addEntry({ source: 'manual', content, project, task })
-    setContent('')
-    onSaved()
+    if (!content.trim() || isSaving) return
+    setIsSaving(true)
+    try {
+      await addEntry({ source: 'manual', content, project, task })
+      setContent('')
+      onSaved()
+    } catch (err) {
+      console.error('Failed to save entry:', err)
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   return (
@@ -35,7 +43,9 @@ export function Composer({ onSaved }: { onSaved: () => void }) {
       </div>
       <textarea rows={4} placeholder="What are you thinking/doing?" value={content} onChange={(e) => setContent(e.target.value)} />
       <div style={{ marginTop: 10 }}>
-        <button onClick={save}>Add to Timeline</button>
+        <button onClick={save} disabled={isSaving}>
+          {isSaving ? 'Saving...' : 'Add to Timeline'}
+        </button>
       </div>
     </div>
   )

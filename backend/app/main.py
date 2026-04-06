@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 
 from fastapi import Depends, FastAPI, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
+from app.config import get_settings
 from app.db.models import DailySummary, Entry, Insight
 from app.db.session import get_session, init_db
 from app.schemas import EntryIn, EntryOut, InsightOut, ScreenshotIn
@@ -14,10 +17,11 @@ from app.services.insights import generate_insights, safe_metadata
 
 app = FastAPI(title='Lookback API', version='0.1.0')
 
+allowed_origins = get_settings().allowed_origins.split(',') if get_settings().allowed_origins != '*' else ['*']
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=['*'],
-    allow_methods=['*'],
+    allow_origins=allowed_origins,
+    allow_methods=['GET', 'POST', 'OPTIONS'],
     allow_headers=['*'],
 )
 
@@ -90,7 +94,7 @@ async def transcribe_audio(
         entry (Entry): The persisted Entry with source set to 'voice' and content set to the transcription text.
     """
     audio_bytes = await audio.read()
-    text = ai_clients.transcribe_audio(audio_bytes)
+    text = await asyncio.to_thread(ai_clients.transcribe_audio, audio_bytes)
     entry = Entry(source='voice', content=text, project=project, task=task, context=context)
     session.add(entry)
     session.commit()
@@ -163,22 +167,33 @@ def list_insights(session: Session = Depends(get_session)) -> list[Insight]:
 def finish_day(session: Session = Depends(get_session)) -> dict[str, str]:
     """
     Create or update today's end-of-day markdown summary from recent entries and persist it.
-    
+
     Builds a markdown summary for the current UTC date containing up to the last 25 entries (each formatted as "- [source] first 160 characters of content"), stores or updates the DailySummary record for that date, commits the change, and returns a status indicator.
-    
+
     Returns:
         dict[str, str]: {'status': 'summary_ready'} when the summary has been persisted.
     """
-    today = datetime.utcnow().strftime('%Y-%m-%d')
-    entries = session.exec(select(Entry).order_by(Entry.created_at)).all()
+    now = datetime.utcnow()
+    today = now.date()
+    today_start = datetime(today.year, today.month, today.day, 0, 0, 0)
+    today_end = datetime(today.year, today.month, today.day, 23, 59, 59, 999999)
+
+    entries = session.exec(
+        select(Entry)
+        .where(Entry.created_at >= today_start, Entry.created_at <= today_end)
+        .order_by(Entry.created_at)
+    ).all()
     bullets = '\n'.join([f'- [{e.source}] {e.content[:160]}' for e in entries[-25:]])
     summary = f'# End-of-day review ({today})\n\n{bullets}\n\nNext step: launch real-time voice session to validate and correct.'
 
-    existing = session.exec(select(DailySummary).where(DailySummary.date == today)).first()
-    if existing:
-        existing.summary_markdown = summary
-        session.add(existing)
-    else:
+    try:
         session.add(DailySummary(date=today, summary_markdown=summary))
-    session.commit()
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        existing = session.exec(select(DailySummary).where(DailySummary.date == today)).first()
+        if existing:
+            existing.summary_markdown = summary
+            session.add(existing)
+            session.commit()
     return {'status': 'summary_ready'}

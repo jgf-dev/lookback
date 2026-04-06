@@ -17,4 +17,5 @@ uvicorn app.main:app --reload
 - `POST /screenshots`: analyze screenshot + save timeline entry
 - `GET /timeline`: rolling day timeline
 - `POST /insights/generate`: trend and action suggestions
+- `GET /insights`: retrieve computed insights (trends/actions) for a given timeframe
 - `POST /day/finish`: generate end-of-day summary for voice review session

@@ -3,6 +3,30 @@ import { Entry, Insight } from '@/types'
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
 /**
+ * Shared helper that wraps fetch and verifies response status before parsing JSON.
+ *
+ * @param url - The URL to fetch
+ * @param options - Fetch options (method, headers, body, etc.)
+ * @returns Parsed JSON response
+ * @throws Error with status and error details if response is not ok
+ */
+async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
+  const res = await fetch(url, options)
+  if (!res.ok) {
+    let errorMessage = `Request failed with status ${res.status}`
+    try {
+      const errorData = await res.json()
+      errorMessage = errorData.message || errorData.detail || JSON.stringify(errorData)
+    } catch {
+      // If error response is not JSON, use status text
+      errorMessage = res.statusText || errorMessage
+    }
+    throw new Error(errorMessage)
+  }
+  return (await res.json()) as T
+}
+
+/**
  * Creates a new entry on the server using the provided payload.
  *
  * @param payload - Object containing entry data: `source` (origin identifier), `content` (entry text), and optional `project`, `task`, and `context` fields
@@ -15,12 +39,11 @@ export async function addEntry(payload: {
   task?: string
   context?: string
 }) {
-  const res = await fetch(`${API}/entries`, {
+  return fetchJson<Entry>(`${API}/entries`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   })
-  return (await res.json()) as Entry
 }
 
 /**
@@ -29,8 +52,7 @@ export async function addEntry(payload: {
  * @returns An array of `Entry` objects representing the timeline
  */
 export async function timeline() {
-  const res = await fetch(`${API}/timeline`, { cache: 'no-store' })
-  return (await res.json()) as Entry[]
+  return fetchJson<Entry[]>(`${API}/timeline`, { cache: 'no-store' })
 }
 
 /**
@@ -39,6 +61,5 @@ export async function timeline() {
  * @returns The array of generated `Insight` objects
  */
 export async function generateInsights() {
-  const res = await fetch(`${API}/insights/generate`, { method: 'POST' })
-  return (await res.json()) as Insight[]
+  return fetchJson<Insight[]>(`${API}/insights/generate`, { method: 'POST' })
 }
