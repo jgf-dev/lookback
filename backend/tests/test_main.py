@@ -1,7 +1,10 @@
+from datetime import datetime, timezone
+
 from fastapi.testclient import TestClient
 
-from app.main import app
+from app.main import create_app
 
+app = create_app("sqlite:///./test.db")
 client = TestClient(app)
 
 
@@ -17,3 +20,46 @@ def test_analyze_endpoint() -> None:
     data = response.json()
     assert data["summary"].startswith("Processed note")
     assert 0 <= data["score"] <= 1
+
+
+def test_create_and_update_item_and_websocket_stream() -> None:
+    with client.websocket_connect("/api/ws/timeline") as websocket:
+        payload = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "source_type": "speech",
+            "raw_content": "Discussed roadmap",
+            "enriched_content": "Roadmap discussion with milestones",
+            "tags": ["planning"],
+            "inferred_project_task": "Prepare roadmap draft",
+            "relationships": [],
+            "confidence": 0.88,
+            "user_edits": {"spelling": "none"},
+            "provenance": {"captured_by": "microphone"},
+            "enriched_provenance": {"provider": "web"},
+        }
+        create_response = client.post("/api/items", json=payload)
+        assert create_response.status_code == 201
+        created = create_response.json()
+        created_event = websocket.receive_json()
+        assert created_event["event"] == "created"
+        assert created_event["item_id"] == created["id"]
+        assert created["raw_content"] == payload["raw_content"]
+        assert created["enriched_content"] == payload["enriched_content"]
+
+        update_response = client.put(
+            f"/api/items/{created['id']}",
+            json={
+                "raw_content": "Updated user note",
+                "enriched_content": "Updated automated enrichment",
+                "tags": ["planning", "updated"],
+                "confidence": 0.95,
+                "provenance": {"updated_by": "api_test"},
+            },
+        )
+        assert update_response.status_code == 200
+        updated = update_response.json()
+        updated_event = websocket.receive_json()
+        assert updated_event["event"] == "updated"
+        assert updated_event["item_id"] == created["id"]
+        assert updated["raw_content"] == "Updated user note"
+        assert updated["enriched_content"] == "Updated automated enrichment"
