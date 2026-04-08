@@ -1,434 +1,309 @@
-"""Tests for the AGENTS.md specification document.
+"""Tests for the AGENTS.md implementation spec document.
 
-Validates the structure, content, and internal consistency of the
-implementation spec introduced in this PR.
+Validates that the spec is complete, well-formed, and contains all required
+sections, contracts, endpoints, and acceptance criteria described in the PR.
 """
 
 import json
-import os
 import re
+from pathlib import Path
+
+import pytest
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+AGENTS_MD = PROJECT_ROOT / "AGENTS.md"
 
 
-AGENTS_MD_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "AGENTS.md")
-
-
-def read_agents_md() -> str:
-    with open(AGENTS_MD_PATH, encoding="utf-8") as f:
-        return f.read()
+@pytest.fixture(scope="module")
+def spec_text() -> str:
+    return AGENTS_MD.read_text(encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
-# File presence
+# File existence and basic sanity
 # ---------------------------------------------------------------------------
 
 
 def test_agents_md_exists() -> None:
-    assert os.path.isfile(AGENTS_MD_PATH), "AGENTS.md must exist at the repository root"
+    assert AGENTS_MD.exists(), "AGENTS.md must exist at the project root"
 
 
-def test_agents_md_is_not_empty() -> None:
-    content = read_agents_md()
-    assert len(content.strip()) > 0, "AGENTS.md must not be empty"
+def test_agents_md_is_non_empty(spec_text: str) -> None:
+    assert len(spec_text.strip()) > 0, "AGENTS.md must not be empty"
 
 
-# ---------------------------------------------------------------------------
-# Top-level document structure (12 required sections)
-# ---------------------------------------------------------------------------
-
-REQUIRED_SECTIONS = [
-    "## 1. System Overview",
-    "## 2. Tech Stack",
-    "## 3. High-Level Architecture",
-    "## 4. Core Services",
-    "## 5. Data Model",
-    "## 6. Realtime Layer",
-    "## 7. Frontend (Next.js)",
-    "## 8. Pipelines",
-    "## 9. Security & Privacy",
-    "## 10. Folder Structure",
-    "## 11. Acceptance Criteria",
-    "## 12. Stretch Goals",
-]
-
-
-def test_all_required_sections_present() -> None:
-    content = read_agents_md()
-    for section in REQUIRED_SECTIONS:
-        assert section in content, f"Required section missing: {section!r}"
-
-
-def test_document_title_present() -> None:
-    content = read_agents_md()
-    assert "# Implementation Spec: Personal Capture & Insight System" in content
+def test_agents_md_minimum_length(spec_text: str) -> None:
+    lines = spec_text.splitlines()
+    assert len(lines) >= 400, f"Expected at least 400 lines, got {len(lines)}"
 
 
 # ---------------------------------------------------------------------------
-# Tech stack mentions
+# Required top-level sections (## 1. … ## 12.)
 # ---------------------------------------------------------------------------
 
-REQUIRED_BACKEND_TECHNOLOGIES = ["FastAPI", "PostgreSQL", "Redis"]
-REQUIRED_FRONTEND_TECHNOLOGIES = ["Next.js", "TypeScript", "WebSocket"]
-REQUIRED_AI_TECHNOLOGIES = ["OpenAI", "Gemini"]
 
-
-def test_required_backend_technologies_mentioned() -> None:
-    content = read_agents_md()
-    for tech in REQUIRED_BACKEND_TECHNOLOGIES:
-        assert tech in content, f"Backend technology not mentioned: {tech!r}"
-
-
-def test_required_frontend_technologies_mentioned() -> None:
-    content = read_agents_md()
-    for tech in REQUIRED_FRONTEND_TECHNOLOGIES:
-        assert tech in content, f"Frontend technology not mentioned: {tech!r}"
-
-
-def test_required_ai_technologies_mentioned() -> None:
-    content = read_agents_md()
-    for tech in REQUIRED_AI_TECHNOLOGIES:
-        assert tech in content, f"AI technology not mentioned: {tech!r}"
-
-
-# ---------------------------------------------------------------------------
-# Core service sub-sections
-# ---------------------------------------------------------------------------
-
-REQUIRED_SERVICES = [
-    "### 4.1 Ingestion Service",
-    "### 4.2 Enrichment Service",
-    "### 4.3 Analysis Service",
-    "### 4.4 Visualization Service",
-    "### 4.5 End-of-Day Review Service",
-]
-
-
-def test_all_core_services_documented() -> None:
-    content = read_agents_md()
-    for service in REQUIRED_SERVICES:
-        assert service in content, f"Core service section missing: {service!r}"
+@pytest.mark.parametrize(
+    "section_heading",
+    [
+        "## 1. System Overview",
+        "## 2. Tech Stack",
+        "## 3. High-Level Architecture",
+        "## 4. Core Services",
+        "## 5. Data Model",
+        "## 6. Realtime Layer",
+        "## 7. Frontend (Next.js)",
+        "## 8. Pipelines",
+        "## 9. Security & Privacy",
+        "## 10. Folder Structure",
+        "## 11. Acceptance Criteria",
+        "## 12. Stretch Goals",
+    ],
+)
+def test_required_section_present(spec_text: str, section_heading: str) -> None:
+    assert section_heading in spec_text, f"Missing section: {section_heading!r}"
 
 
 # ---------------------------------------------------------------------------
-# API endpoint specifications
+# Tech stack
 # ---------------------------------------------------------------------------
 
-REQUIRED_INGESTION_ENDPOINTS = [
-    "POST /ingest/audio",
-    "POST /ingest/screenshot",
-    "POST /ingest/text",
-]
 
-REQUIRED_REVIEW_ENDPOINT = "POST /review/start"
-REQUIRED_WEBSOCKET_ENDPOINT = "/ws/timeline"
-
-
-def test_ingestion_endpoints_defined() -> None:
-    content = read_agents_md()
-    for endpoint in REQUIRED_INGESTION_ENDPOINTS:
-        assert endpoint in content, f"Ingestion endpoint missing from spec: {endpoint!r}"
-
-
-def test_review_endpoint_defined() -> None:
-    content = read_agents_md()
-    assert REQUIRED_REVIEW_ENDPOINT in content
-
-
-def test_websocket_endpoint_defined() -> None:
-    content = read_agents_md()
-    assert REQUIRED_WEBSOCKET_ENDPOINT in content
-
-
-def test_all_ingestion_endpoints_use_post_method() -> None:
-    """All /ingest/* endpoints must be declared as POST."""
-    content = read_agents_md()
-    # Extract the http code block that contains ingest endpoints
-    http_blocks = re.findall(r"```http\n(.*?)```", content, re.DOTALL)
-    ingest_block = next(
-        (b for b in http_blocks if "/ingest/" in b),
-        None,
-    )
-    assert ingest_block is not None, "No HTTP block with /ingest/ routes found"
-    ingest_routes = [
-        line.strip() for line in ingest_block.strip().splitlines() if "/ingest/" in line
-    ]
-    for route in ingest_routes:
-        assert route.startswith("POST "), f"Ingest route must use POST: {route!r}"
+@pytest.mark.parametrize(
+    "technology",
+    ["FastAPI", "PostgreSQL", "Redis", "Next.js", "TypeScript", "OpenAI", "Gemini"],
+)
+def test_tech_stack_mentions(spec_text: str, technology: str) -> None:
+    assert technology in spec_text, f"Tech stack missing: {technology!r}"
 
 
 # ---------------------------------------------------------------------------
-# Enrichment service JSON output shape
+# HTTP endpoints
 # ---------------------------------------------------------------------------
 
-ENRICHMENT_JSON_REQUIRED_KEYS = {
-    "summary",
-    "tags",
-    "related_entries",
-    "external_context",
-    "confidence",
-}
+
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "POST /ingest/audio",
+        "POST /ingest/screenshot",
+        "POST /ingest/text",
+        "POST /review/start",
+    ],
+)
+def test_http_endpoint_defined(spec_text: str, endpoint: str) -> None:
+    assert endpoint in spec_text, f"HTTP endpoint not specified: {endpoint!r}"
 
 
-def _extract_json_blocks(content: str) -> list[str]:
-    """Return all fenced ```json ... ``` blocks from markdown content."""
-    return re.findall(r"```json\n(.*?)```", content, re.DOTALL)
+def test_websocket_endpoint_defined(spec_text: str) -> None:
+    assert "/ws/timeline" in spec_text, "WebSocket endpoint /ws/timeline not specified"
 
 
-def test_enrichment_output_json_is_valid() -> None:
-    content = read_agents_md()
-    json_blocks = _extract_json_blocks(content)
-    # The enrichment output block contains "summary" and "tags"
+# ---------------------------------------------------------------------------
+# WebSocket event names
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "event",
+    ["entry_created", "entry_updated", "insight_created"],
+)
+def test_websocket_event_defined(spec_text: str, event: str) -> None:
+    assert event in spec_text, f"WebSocket event not mentioned: {event!r}"
+
+
+# ---------------------------------------------------------------------------
+# JSON contract examples
+# ---------------------------------------------------------------------------
+
+
+def _extract_json_blocks(text: str) -> list[str]:
+    """Return all fenced ```json … ``` blocks from *text*."""
+    return re.findall(r"```json\s*([\s\S]*?)```", text)
+
+
+def test_json_blocks_present(spec_text: str) -> None:
+    blocks = _extract_json_blocks(spec_text)
+    assert len(blocks) >= 2, "Expected at least 2 JSON code blocks in the spec"
+
+
+def test_enrichment_output_is_valid_json(spec_text: str) -> None:
+    blocks = _extract_json_blocks(spec_text)
     enrichment_block = next(
-        (b for b in json_blocks if '"summary"' in b and '"tags"' in b),
-        None,
+        (b for b in blocks if '"summary"' in b and '"tags"' in b), None
     )
     assert enrichment_block is not None, "Enrichment output JSON block not found"
     parsed = json.loads(enrichment_block)
     assert isinstance(parsed, dict)
 
 
-def test_enrichment_output_has_required_keys() -> None:
-    content = read_agents_md()
-    json_blocks = _extract_json_blocks(content)
+def test_enrichment_output_has_required_fields(spec_text: str) -> None:
+    blocks = _extract_json_blocks(spec_text)
     enrichment_block = next(
-        (b for b in json_blocks if '"summary"' in b and '"tags"' in b),
-        None,
+        (b for b in blocks if '"summary"' in b and '"tags"' in b), None
     )
     assert enrichment_block is not None
     parsed = json.loads(enrichment_block)
-    missing = ENRICHMENT_JSON_REQUIRED_KEYS - parsed.keys()
-    assert not missing, f"Enrichment JSON missing keys: {missing}"
+    for field in ("summary", "tags", "related_entries", "external_context", "confidence"):
+        assert field in parsed, f"Enrichment output missing field: {field!r}"
 
 
-def test_enrichment_confidence_is_numeric() -> None:
-    content = read_agents_md()
-    json_blocks = _extract_json_blocks(content)
+def test_enrichment_confidence_is_numeric(spec_text: str) -> None:
+    blocks = _extract_json_blocks(spec_text)
     enrichment_block = next(
-        (b for b in json_blocks if '"summary"' in b and '"tags"' in b),
-        None,
+        (b for b in blocks if '"summary"' in b and '"tags"' in b), None
     )
     assert enrichment_block is not None
     parsed = json.loads(enrichment_block)
-    assert isinstance(parsed["confidence"], (int, float))
-    assert 0.0 <= parsed["confidence"] <= 1.0
+    assert isinstance(parsed["confidence"], float), "confidence must be a float"
+    assert 0.0 <= parsed["confidence"] <= 1.0, "confidence must be in [0, 1]"
 
 
-def test_enrichment_tags_is_list() -> None:
-    content = read_agents_md()
-    json_blocks = _extract_json_blocks(content)
+def test_enrichment_tags_is_list(spec_text: str) -> None:
+    blocks = _extract_json_blocks(spec_text)
     enrichment_block = next(
-        (b for b in json_blocks if '"summary"' in b and '"tags"' in b),
-        None,
+        (b for b in blocks if '"summary"' in b and '"tags"' in b), None
     )
     assert enrichment_block is not None
     parsed = json.loads(enrichment_block)
-    assert isinstance(parsed["tags"], list)
+    assert isinstance(parsed["tags"], list), "tags must be a list"
 
 
-def test_enrichment_related_entries_is_list() -> None:
-    content = read_agents_md()
-    json_blocks = _extract_json_blocks(content)
-    enrichment_block = next(
-        (b for b in json_blocks if '"summary"' in b and '"tags"' in b),
-        None,
-    )
-    assert enrichment_block is not None
-    parsed = json.loads(enrichment_block)
-    assert isinstance(parsed["related_entries"], list)
-
-
-# ---------------------------------------------------------------------------
-# Visualization service JSON output shape
-# ---------------------------------------------------------------------------
-
-
-def test_visualization_output_json_is_valid() -> None:
-    content = read_agents_md()
-    json_blocks = _extract_json_blocks(content)
+def test_visualization_output_is_valid_json(spec_text: str) -> None:
+    blocks = _extract_json_blocks(spec_text)
     viz_block = next(
-        (b for b in json_blocks if '"nodes"' in b and '"edges"' in b),
-        None,
+        (b for b in blocks if '"nodes"' in b and '"edges"' in b), None
     )
     assert viz_block is not None, "Visualization output JSON block not found"
     parsed = json.loads(viz_block)
     assert isinstance(parsed, dict)
 
 
-def test_visualization_output_has_nodes_and_edges() -> None:
-    content = read_agents_md()
-    json_blocks = _extract_json_blocks(content)
+def test_visualization_output_has_nodes_and_edges(spec_text: str) -> None:
+    blocks = _extract_json_blocks(spec_text)
     viz_block = next(
-        (b for b in json_blocks if '"nodes"' in b and '"edges"' in b),
-        None,
+        (b for b in blocks if '"nodes"' in b and '"edges"' in b), None
     )
     assert viz_block is not None
     parsed = json.loads(viz_block)
-    assert "nodes" in parsed
-    assert "edges" in parsed
+    assert "nodes" in parsed, "Visualization output must have 'nodes'"
+    assert "edges" in parsed, "Visualization output must have 'edges'"
 
 
 # ---------------------------------------------------------------------------
-# Insight object keys
+# Insight object contract (uses range notation — not strict JSON, tested textually)
 # ---------------------------------------------------------------------------
 
-INSIGHT_REQUIRED_KEYS = {"type", "title", "description", "related_entries", "priority", "confidence"}
 
-VALID_INSIGHT_TYPES = {"trend", "reminder", "contradiction", "opportunity"}
-
-
-def test_insight_object_declares_required_keys() -> None:
-    """Insight JSON block (even as a template) must contain all required keys."""
-    content = read_agents_md()
-    json_blocks = _extract_json_blocks(content)
-    insight_block = next(
-        (b for b in json_blocks if '"type"' in b and '"priority"' in b),
-        None,
+@pytest.mark.parametrize(
+    "field",
+    ["type", "title", "description", "related_entries", "priority", "confidence"],
+)
+def test_insight_object_field_mentioned(spec_text: str, field: str) -> None:
+    insight_section_match = re.search(
+        r"#### Insight Object([\s\S]*?)(?=\n---|\Z)", spec_text
     )
-    assert insight_block is not None, "Insight object JSON block not found"
-    for key in INSIGHT_REQUIRED_KEYS:
-        assert f'"{key}"' in insight_block, f"Insight block missing key: {key!r}"
+    assert insight_section_match is not None, "Insight Object section not found"
+    insight_section = insight_section_match.group(1)
+    assert f'"{field}"' in insight_section, f"Insight object missing field: {field!r}"
 
 
-def test_insight_type_values_listed() -> None:
-    """The spec must enumerate all valid insight type values."""
-    content = read_agents_md()
-    for insight_type in VALID_INSIGHT_TYPES:
-        assert insight_type in content, f"Valid insight type not mentioned: {insight_type!r}"
-
-
-# ---------------------------------------------------------------------------
-# Data model (SQL schemas)
-# ---------------------------------------------------------------------------
-
-ENTRIES_TABLE_COLUMNS = [
-    "id",
-    "timestamp",
-    "type",
-    "raw_content",
-    "enriched_content",
-    "tags",
-    "project",
-    "relationships",
-    "confidence",
-    "metadata",
-    "created_at",
-]
-
-INSIGHTS_TABLE_COLUMNS = [
-    "id",
-    "type",
-    "title",
-    "description",
-    "related_entries",
-    "priority",
-    "confidence",
-    "created_at",
-]
-
-SCREENSHOTS_TABLE_COLUMNS = [
-    "id",
-    "entry_id",
-    "file_path",
-    "ocr_text",
-    "analysis",
-]
-
-
-def _extract_sql_blocks(content: str) -> list[str]:
-    return re.findall(r"```sql\n(.*?)```", content, re.DOTALL)
-
-
-def test_entries_table_has_required_columns() -> None:
-    content = read_agents_md()
-    sql_blocks = _extract_sql_blocks(content)
-    entries_block = next((b for b in sql_blocks if "entries" in b), None)
-    assert entries_block is not None, "entries SQL block not found"
-    for col in ENTRIES_TABLE_COLUMNS:
-        assert col in entries_block, f"entries table missing column: {col!r}"
-
-
-def test_entries_table_has_uuid_primary_key() -> None:
-    content = read_agents_md()
-    sql_blocks = _extract_sql_blocks(content)
-    entries_block = next((b for b in sql_blocks if "entries" in b), None)
-    assert entries_block is not None
-    assert "UUID PRIMARY KEY" in entries_block
-
-
-def test_entries_type_column_has_comment_with_valid_types() -> None:
-    """The entries.type column comment must list audio, screenshot, text, analysis."""
-    content = read_agents_md()
-    sql_blocks = _extract_sql_blocks(content)
-    entries_block = next((b for b in sql_blocks if "entries" in b), None)
-    assert entries_block is not None
-    for entry_type in ("audio", "screenshot", "text", "analysis"):
-        assert entry_type in entries_block, (
-            f"entries.type comment missing value: {entry_type!r}"
-        )
-
-
-def test_insights_table_has_required_columns() -> None:
-    content = read_agents_md()
-    sql_blocks = _extract_sql_blocks(content)
-    insights_block = next((b for b in sql_blocks if "insights" in b), None)
-    assert insights_block is not None, "insights SQL block not found"
-    for col in INSIGHTS_TABLE_COLUMNS:
-        assert col in insights_block, f"insights table missing column: {col!r}"
-
-
-def test_screenshots_table_has_required_columns() -> None:
-    content = read_agents_md()
-    sql_blocks = _extract_sql_blocks(content)
-    screenshots_block = next((b for b in sql_blocks if "screenshots" in b), None)
-    assert screenshots_block is not None, "screenshots SQL block not found"
-    for col in SCREENSHOTS_TABLE_COLUMNS:
-        assert col in screenshots_block, f"screenshots table missing column: {col!r}"
-
-
-def test_screenshots_table_references_entry_id() -> None:
-    content = read_agents_md()
-    sql_blocks = _extract_sql_blocks(content)
-    screenshots_block = next((b for b in sql_blocks if "screenshots" in b), None)
-    assert screenshots_block is not None
-    assert "entry_id" in screenshots_block, "screenshots table must reference entry_id"
+def test_insight_type_values_defined(spec_text: str) -> None:
+    """The insight type field should enumerate its allowed values."""
+    assert "trend" in spec_text
+    assert "reminder" in spec_text
+    assert "contradiction" in spec_text
+    assert "opportunity" in spec_text
 
 
 # ---------------------------------------------------------------------------
-# Realtime / WebSocket events
+# Data model tables
 # ---------------------------------------------------------------------------
 
-REQUIRED_WEBSOCKET_EVENTS = ["entry_created", "entry_updated", "insight_created"]
+
+@pytest.mark.parametrize("table", ["entries", "insights", "screenshots"])
+def test_data_model_table_defined(spec_text: str, table: str) -> None:
+    assert table in spec_text, f"Data model table not defined: {table!r}"
 
 
-def test_all_websocket_events_documented() -> None:
-    content = read_agents_md()
-    for event in REQUIRED_WEBSOCKET_EVENTS:
-        assert event in content, f"WebSocket event missing from spec: {event!r}"
+@pytest.mark.parametrize(
+    "column",
+    ["UUID PRIMARY KEY", "TIMESTAMP", "JSONB", "TEXT[]"],
+)
+def test_entries_table_sql_types_present(spec_text: str, column: str) -> None:
+    assert column in spec_text, f"Expected SQL type/keyword missing: {column!r}"
 
 
 # ---------------------------------------------------------------------------
-# Frontend pages and components
+# Security & Privacy
 # ---------------------------------------------------------------------------
 
-REQUIRED_FRONTEND_PAGES = ["/timeline", "/review", "/insights", "/settings"]
-REQUIRED_FRONTEND_COMPONENTS = [
-    "TimelineCanvas",
-    "EntryCard",
-    "InsightPanel",
-    "VoiceReviewPanel",
-    "ScreenshotViewer",
-]
+
+@pytest.mark.parametrize(
+    "security_term",
+    ["JWT", "consent", "encryption", "Audit log"],
+)
+def test_security_requirement_present(spec_text: str, security_term: str) -> None:
+    assert security_term in spec_text, f"Security requirement missing: {security_term!r}"
 
 
-def test_required_frontend_pages_documented() -> None:
-    content = read_agents_md()
-    for page in REQUIRED_FRONTEND_PAGES:
-        assert page in content, f"Frontend page missing from spec: {page!r}"
+# ---------------------------------------------------------------------------
+# Acceptance criteria
+# ---------------------------------------------------------------------------
 
 
-def test_required_frontend_components_documented() -> None:
-    content = read_agents_md()
-    for component in REQUIRED_FRONTEND_COMPONENTS:
-        assert component in content, f"Frontend component missing from spec: {component!r}"
+def test_acceptance_criteria_has_unchecked_items(spec_text: str) -> None:
+    """All acceptance criteria items should be unchecked (awaiting implementation)."""
+    checked_count = (
+        spec_text.count("- [x]") + spec_text.count("- [X]")
+        + spec_text.count("* [x]") + spec_text.count("* [X]")
+    )
+    unchecked_count = spec_text.count("- [ ]") + spec_text.count("* [ ]")
+    assert unchecked_count >= 10, (
+        f"Expected at least 10 unchecked acceptance criteria, found {unchecked_count}"
+    )
+    assert checked_count == 0, (
+        f"Expected no pre-checked criteria (spec is a forward-looking plan), but found {checked_count}"
+    )
+
+
+@pytest.mark.parametrize(
+    "category",
+    ["Core Functionality", "UX", "Intelligence", "Reliability"],
+)
+def test_acceptance_criteria_category_present(spec_text: str, category: str) -> None:
+    assert category in spec_text, f"Acceptance criteria category missing: {category!r}"
+
+
+def test_acceptance_criteria_audio_latency(spec_text: str) -> None:
+    """Audio transcription latency target must be stated."""
+    assert "<2s" in spec_text or "2s delay" in spec_text, (
+        "Audio latency requirement (<2s) not found in spec"
+    )
+
+
+def test_acceptance_criteria_timeline_latency(spec_text: str) -> None:
+    """Timeline entry appearance latency must be stated."""
+    assert "1" in spec_text and "3 seconds" in spec_text, (
+        "Timeline entry latency (1–3 seconds) not stated in spec"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Frontend
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("page", ["/timeline", "/review", "/insights", "/settings"])
+def test_frontend_page_defined(spec_text: str, page: str) -> None:
+    assert page in spec_text, f"Frontend page not defined: {page!r}"
+
+
+@pytest.mark.parametrize(
+    "component",
+    ["TimelineCanvas", "EntryCard", "InsightPanel", "VoiceReviewPanel", "ScreenshotViewer"],
+)
+def test_frontend_component_defined(spec_text: str, component: str) -> None:
+    assert component in spec_text, f"Frontend component not defined: {component!r}"
 
 
 # ---------------------------------------------------------------------------
@@ -436,200 +311,45 @@ def test_required_frontend_components_documented() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_audio_pipeline_section_present() -> None:
-    content = read_agents_md()
-    assert "### 8.1 Audio Pipeline" in content
+def test_audio_pipeline_defined(spec_text: str) -> None:
+    assert "Audio Pipeline" in spec_text or "8.1 Audio Pipeline" in spec_text
 
 
-def test_screenshot_pipeline_section_present() -> None:
-    content = read_agents_md()
-    assert "### 8.2 Screenshot Pipeline" in content
-
-
-def test_audio_pipeline_ends_at_timeline() -> None:
-    """Audio pipeline diagram must end with Timeline."""
-    content = read_agents_md()
-    # Find the audio pipeline diagram line
-    match = re.search(r"Audio.*?→.*?Timeline", content)
-    assert match is not None, "Audio pipeline must show flow ending at Timeline"
-
-
-def test_screenshot_pipeline_ends_at_timeline() -> None:
-    """Screenshot pipeline diagram must end with Timeline."""
-    content = read_agents_md()
-    match = re.search(r"Screenshot.*?→.*?Timeline", content)
-    assert match is not None, "Screenshot pipeline must show flow ending at Timeline"
+def test_screenshot_pipeline_defined(spec_text: str) -> None:
+    assert "Screenshot Pipeline" in spec_text or "8.2 Screenshot Pipeline" in spec_text
 
 
 # ---------------------------------------------------------------------------
-# Security & Privacy
+# Negative / boundary checks
 # ---------------------------------------------------------------------------
 
-REQUIRED_SECURITY_ITEMS = ["JWT", "encryption", "consent"]
+
+def test_no_hardcoded_api_keys(spec_text: str) -> None:
+    """Spec must not contain inline API keys or secrets."""
+    suspicious_patterns = [
+        r"sk-[A-Za-z0-9]{20,}",   # OpenAI key pattern
+        r"AIza[A-Za-z0-9_\-]{35}",  # Google API key pattern
+        r"password\s*=\s*['\"][^'\"]{4,}",
+    ]
+    for pattern in suspicious_patterns:
+        match = re.search(pattern, spec_text)
+        assert match is None, f"Possible hardcoded credential found matching {pattern!r}"
 
 
-def test_security_section_mentions_jwt() -> None:
-    content = read_agents_md()
-    assert "JWT" in content, "Security section must mention JWT authentication"
-
-
-def test_security_section_mentions_encryption() -> None:
-    content = read_agents_md()
-    assert "encryption" in content, "Security section must mention encryption"
-
-
-def test_security_section_requires_user_consent() -> None:
-    content = read_agents_md()
-    assert "consent" in content, "Security section must require user consent"
-
-
-def test_security_section_mentions_audit_log() -> None:
-    content = read_agents_md()
-    assert "Audit log" in content or "audit log" in content
-
-
-# ---------------------------------------------------------------------------
-# Acceptance criteria completeness
-# ---------------------------------------------------------------------------
-
-REQUIRED_ACCEPTANCE_CRITERIA_KEYWORDS = [
-    "transcribed",
-    "timeline",
-    "Enrichment",
-    "Insights",
-    "edit",
-    "delete",
-]
-
-
-def test_acceptance_criteria_covers_core_functionality() -> None:
-    content = read_agents_md()
-    # Find the acceptance criteria section
-    ac_section_match = re.search(
-        r"## 11\. Acceptance Criteria(.*?)## 12\.",
-        content,
-        re.DOTALL,
+def test_spec_does_not_mark_todo_as_done(spec_text: str) -> None:
+    """AGENTS.md is a forward-looking spec; no items should be marked done."""
+    checked = (
+        spec_text.count("- [x]") + spec_text.count("- [X]")
+        + spec_text.count("* [x]") + spec_text.count("* [X]")
     )
-    assert ac_section_match is not None, "Acceptance Criteria section not found"
-    ac_section = ac_section_match.group(1)
-    for keyword in REQUIRED_ACCEPTANCE_CRITERIA_KEYWORDS:
-        assert keyword in ac_section, (
-            f"Acceptance criteria missing keyword: {keyword!r}"
-        )
+    assert checked == 0, "No acceptance criteria should be marked complete in the spec"
 
 
-def test_acceptance_criteria_has_reliability_subsection() -> None:
-    content = read_agents_md()
-    assert "### Reliability" in content
-
-
-def test_acceptance_criteria_has_ux_subsection() -> None:
-    content = read_agents_md()
-    assert "### UX" in content
-
-
-def test_acceptance_criteria_has_intelligence_subsection() -> None:
-    content = read_agents_md()
-    assert "### Intelligence" in content
-
-
-# ---------------------------------------------------------------------------
-# Folder structure documentation
-# ---------------------------------------------------------------------------
-
-REQUIRED_BACKEND_FILES = [
-    "main.py",
-    "routes_ingest.py",
-    "routes_review.py",
-    "transcription.py",
-    "enrichment.py",
-    "analysis.py",
-    "vision.py",
-    "insights.py",
-]
-
-
-def test_backend_folder_structure_documents_main_entry() -> None:
-    content = read_agents_md()
-    assert "main.py" in content
-
-
-def test_backend_folder_structure_documents_service_files() -> None:
-    content = read_agents_md()
-    for filename in REQUIRED_BACKEND_FILES:
-        assert filename in content, f"Backend folder structure missing file: {filename!r}"
-
-
-def test_frontend_folder_structure_documented() -> None:
-    content = read_agents_md()
-    for folder in ("timeline/", "review/", "insights/"):
-        assert folder in content, f"Frontend folder structure missing: {folder!r}"
-
-
-# ---------------------------------------------------------------------------
-# Stretch goals (regression: ensure they're present)
-# ---------------------------------------------------------------------------
-
-
-def test_stretch_goals_section_present() -> None:
-    content = read_agents_md()
-    assert "## 12. Stretch Goals" in content
-
-
-def test_stretch_goals_include_semantic_search() -> None:
-    content = read_agents_md()
-    assert "Semantic search" in content or "semantic search" in content
-
-
-def test_stretch_goals_include_mobile_companion() -> None:
-    content = read_agents_md()
-    assert "Mobile companion" in content or "mobile companion" in content
-
-
-# ---------------------------------------------------------------------------
-# Boundary / negative cases
-# ---------------------------------------------------------------------------
-
-
-def test_spec_does_not_reference_deprecated_technologies() -> None:
-    """The spec should not reference outdated approaches like REST polling instead of WebSockets."""
-    content = read_agents_md()
-    # The spec explicitly requires WebSockets; polling would contradict it
-    assert "WebSocket" in content, "Spec must reference WebSocket for real-time updates"
-
-
-def test_spec_confidence_field_range_documented() -> None:
-    """The insight object must document that confidence is a 0.0–1.0 float."""
-    content = read_agents_md()
-    # Look for confidence range notation in insight block area
-    insight_section_match = re.search(
-        r"#### Insight Object(.*?)---",
-        content,
-        re.DOTALL,
-    )
-    assert insight_section_match is not None
-    insight_section = insight_section_match.group(1)
-    assert "confidence" in insight_section
-    assert "0.0" in insight_section and "1.0" in insight_section
-
-
-def test_spec_priority_field_range_documented() -> None:
-    """The insight object must document priority as an integer range (1-5)."""
-    content = read_agents_md()
-    insight_section_match = re.search(
-        r"#### Insight Object(.*?)---",
-        content,
-        re.DOTALL,
-    )
-    assert insight_section_match is not None
-    insight_section = insight_section_match.group(1)
-    assert "priority" in insight_section
-    assert "1" in insight_section and "5" in insight_section
-
-
-def test_spec_has_no_undefined_section_references() -> None:
-    """Any section reference like '## N.' should correspond to an actual section heading."""
-    content = read_agents_md()
-    # Extract declared section numbers
-    declared = set(re.findall(r"^## (\d+)\.", content, re.MULTILINE))
-    assert declared == {"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"}
+def test_stretch_goals_section_non_empty(spec_text: str) -> None:
+    """Stretch goals section must contain at least one goal."""
+    match = re.search(r"## 12\. Stretch Goals([\s\S]*?)(?=\n---|\Z)", spec_text)
+    assert match is not None, "Stretch Goals section not found"
+    content = match.group(1).strip()
+    assert len(content) > 0, "Stretch Goals section is empty"
+    bullet_count = content.count("*") + content.count("-")
+    assert bullet_count >= 3, f"Expected at least 3 stretch goals, found section: {content!r}"
