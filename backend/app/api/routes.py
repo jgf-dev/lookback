@@ -77,10 +77,10 @@ async def create_item(
         db.add(
             ItemRelationship(
                 source_item_id=item.id,
-                target_item_id=relation["target_item_id"],
-                relationship_type=relation["relationship_type"],
-                confidence=relation.get("confidence"),
-                provenance=relation.get("provenance", {}),
+                target_item_id=relation.target_item_id,
+                relationship_type=relation.relationship_type,
+                confidence=relation.confidence,
+                provenance=relation.provenance,
             )
         )
 
