@@ -13,6 +13,7 @@ BACKEND_PID=$!
 ) &
 FRONTEND_PID=$!
 
+# cleanup terminates the backend and frontend background processes and suppresses any errors or output.
 cleanup() {
   kill "$BACKEND_PID" "$FRONTEND_PID" >/dev/null 2>&1 || true
 }
