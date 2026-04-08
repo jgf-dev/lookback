@@ -9,9 +9,24 @@ if str(PROJECT_ROOT) not in sys.path:
 from fastapi import FastAPI
 from shared.python.contracts import AnalysisRequest, AnalysisResponse
 
+from app.api.routes import router as api_router
+from app.api.timeline import TimelineBroadcaster
+from app.db.base import Base
+from app.db.session import create_engine_and_session_factory
+from app.models import db_models  # noqa: F401
 
-def create_app() -> FastAPI:
+
+def create_app(
+    database_url: str = "sqlite:///./lookback.db",
+    initialize_schema: bool = False,
+) -> FastAPI:
     app = FastAPI(title="lookback-backend", version="0.1.0")
+
+    engine, session_factory = create_engine_and_session_factory(database_url)
+    app.state.session_factory = session_factory
+    app.state.timeline = TimelineBroadcaster()
+    if initialize_schema:
+        Base.metadata.create_all(bind=engine)
 
     @app.get("/health")
     def health() -> dict[str, str]:
@@ -22,6 +37,7 @@ def create_app() -> FastAPI:
         summary = f"Processed note with {len(payload.note.split())} words"
         return AnalysisResponse(summary=summary, score=min(len(payload.note) / 100, 1.0))
 
+    app.include_router(api_router)
     return app
 
 
