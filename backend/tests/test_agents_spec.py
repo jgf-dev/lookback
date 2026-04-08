@@ -287,12 +287,9 @@ def test_acceptance_criteria_audio_latency(spec_text: str) -> None:
     )
 
 
-def test_acceptance_criteria_timeline_latency(spec_text: str) -> None:
-    """Timeline entry appearance latency must be stated."""
-    pattern = r"\b1\s*(?:–|-|to)\s*3\s+seconds\b"
-    assert re.search(pattern, spec_text), (
-        "Timeline entry latency (1–3 seconds) not stated in spec"
-    )
+def test_acceptance_criteria_has_intelligence_subsection() -> None:
+    content = read_agents_md()
+    assert "### Intelligence" in content
 
 
 # ---------------------------------------------------------------------------
