@@ -1,7 +1,14 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
+
+
+class RelationshipCreate(BaseModel):
+    target_item_id: int
+    relationship_type: str
+    confidence: float | None = None
+    provenance: dict[str, Any] = Field(default_factory=dict)
 
 
 class CapturedItemBase(BaseModel):
@@ -9,7 +16,7 @@ class CapturedItemBase(BaseModel):
     source_type: str
     tags: list[str] = Field(default_factory=list)
     inferred_project_task: str | None = None
-    relationships: list[dict[str, Any]] = Field(default_factory=list)
+    relationships: list[RelationshipCreate] = Field(default_factory=list)
     confidence: float | None = None
     user_edits: dict[str, Any] | None = None
     provenance: dict[str, Any] = Field(default_factory=dict)
@@ -34,5 +41,3 @@ class CapturedItemRead(CapturedItemBase):
     id: int
     raw_content: str
     enriched_content: str | None = None
-
-    model_config = ConfigDict(from_attributes=True)

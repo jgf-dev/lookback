@@ -29,8 +29,6 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
     )
-    op.create_index("ix_captured_items_id", "captured_items", ["id"])
-
     op.create_table(
         "captured_item_user_content",
         sa.Column("id", sa.Integer(), primary_key=True),
@@ -53,6 +51,11 @@ def upgrade() -> None:
         sa.Column("provenance", sa.JSON(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
     )
+    op.create_index(
+        "ix_captured_item_enriched_content_item_id",
+        "captured_item_enriched_content",
+        ["item_id"],
+    )
 
     op.create_table(
         "attachments",
@@ -62,6 +65,7 @@ def upgrade() -> None:
         sa.Column("uri", sa.String(length=500), nullable=False),
         sa.Column("metadata", sa.JSON(), nullable=True),
     )
+    op.create_index("ix_attachments_item_id", "attachments", ["item_id"])
 
     op.create_table(
         "item_relationships",
@@ -104,8 +108,12 @@ def downgrade() -> None:
     op.drop_table("user_consent_records")
     op.drop_table("audit_logs")
     op.drop_table("item_relationships")
+    op.drop_index("ix_attachments_item_id", table_name="attachments")
     op.drop_table("attachments")
+    op.drop_index(
+        "ix_captured_item_enriched_content_item_id",
+        table_name="captured_item_enriched_content",
+    )
     op.drop_table("captured_item_enriched_content")
     op.drop_table("captured_item_user_content")
-    op.drop_index("ix_captured_items_id", table_name="captured_items")
     op.drop_table("captured_items")

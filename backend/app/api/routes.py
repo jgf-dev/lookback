@@ -1,4 +1,7 @@
+from collections.abc import Sequence
+
 from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
+from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.db.session import get_db
@@ -16,6 +19,28 @@ router = APIRouter(prefix="/api")
 
 def db_dependency(request: Request):
     yield from get_db(request.app.state.session_factory)
+
+
+def serialize_relationships(
+    item_id: int,
+    relationships: Sequence[ItemRelationship],
+) -> list[dict]:
+    serialized: list[dict] = []
+    for relation in relationships:
+        target_item_id = (
+            relation.target_item_id
+            if relation.source_item_id == item_id
+            else relation.source_item_id
+        )
+        serialized.append(
+            {
+                "target_item_id": target_item_id,
+                "relationship_type": relation.relationship_type,
+                "confidence": relation.confidence,
+                "provenance": relation.provenance or {},
+            }
+        )
+    return serialized
 
 
 @router.post("/items", response_model=CapturedItemRead, status_code=201)
@@ -71,6 +96,16 @@ async def create_item(
     db.refresh(item)
 
     await request.app.state.timeline.publish({"event": "created", "item_id": item.id})
+    item_relationships = (
+        db.query(ItemRelationship)
+        .filter(
+            or_(
+                ItemRelationship.source_item_id == item.id,
+                ItemRelationship.target_item_id == item.id,
+            )
+        )
+        .all()
+    )
     return CapturedItemRead(
         id=item.id,
         timestamp=item.timestamp,
@@ -81,7 +116,7 @@ async def create_item(
         ),
         tags=item.tags,
         inferred_project_task=item.inferred_project_task,
-        relationships=payload.relationships,
+        relationships=serialize_relationships(item.id, item_relationships),
         confidence=item.confidence,
         user_edits=item.user_edits,
         provenance=item.provenance,
@@ -134,6 +169,16 @@ async def update_item(
     db.refresh(item)
 
     await request.app.state.timeline.publish({"event": "updated", "item_id": item.id})
+    item_relationships = (
+        db.query(ItemRelationship)
+        .filter(
+            or_(
+                ItemRelationship.source_item_id == item.id,
+                ItemRelationship.target_item_id == item.id,
+            )
+        )
+        .all()
+    )
     return CapturedItemRead(
         id=item.id,
         timestamp=item.timestamp,
@@ -144,7 +189,7 @@ async def update_item(
         ),
         tags=item.tags,
         inferred_project_task=item.inferred_project_task,
-        relationships=[],
+        relationships=serialize_relationships(item.id, item_relationships),
         confidence=item.confidence,
         user_edits=item.user_edits,
         provenance=item.provenance,
@@ -160,4 +205,6 @@ async def timeline_stream(websocket: WebSocket) -> None:
             event = await queue.get()
             await websocket.send_json(event)
     except WebSocketDisconnect:
+        pass
+    finally:
         websocket.app.state.timeline.unsubscribe(queue)

@@ -16,13 +16,17 @@ from app.db.session import create_engine_and_session_factory
 from app.models import db_models  # noqa: F401
 
 
-def create_app(database_url: str = "sqlite:///./lookback.db") -> FastAPI:
+def create_app(
+    database_url: str = "sqlite:///./lookback.db",
+    initialize_schema: bool = False,
+) -> FastAPI:
     app = FastAPI(title="lookback-backend", version="0.1.0")
 
     engine, session_factory = create_engine_and_session_factory(database_url)
     app.state.session_factory = session_factory
     app.state.timeline = TimelineBroadcaster()
-    Base.metadata.create_all(bind=engine)
+    if initialize_schema:
+        Base.metadata.create_all(bind=engine)
 
     @app.get("/health")
     def health() -> dict[str, str]:

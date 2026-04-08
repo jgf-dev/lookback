@@ -5,8 +5,8 @@ from sqlalchemy.orm import Session, sessionmaker
 
 
 def create_engine_and_session_factory(database_url: str) -> tuple[Engine, sessionmaker[Session]]:
-    engine = create_engine(database_url, future=True)
-    return engine, sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+    engine = create_engine(database_url)
+    return engine, sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 
 def get_db(session_factory: sessionmaker[Session]) -> Generator[Session, None, None]:

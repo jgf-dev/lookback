@@ -1,9 +1,13 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+
+
+def utcnow() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 class CapturedItem(Base):
@@ -17,9 +21,9 @@ class CapturedItem(Base):
     confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     user_edits: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     provenance: Mapped[dict] = mapped_column(JSON, default=dict)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
     )
 
     user_content: Mapped["CapturedItemUserContent"] = relationship(
@@ -30,6 +34,16 @@ class CapturedItem(Base):
     )
     attachments: Mapped[list["Attachment"]] = relationship(
         back_populates="item", cascade="all, delete-orphan"
+    )
+    outgoing_relationships: Mapped[list["ItemRelationship"]] = relationship(
+        foreign_keys="ItemRelationship.source_item_id",
+        back_populates="source_item",
+        cascade="all, delete-orphan",
+    )
+    incoming_relationships: Mapped[list["ItemRelationship"]] = relationship(
+        foreign_keys="ItemRelationship.target_item_id",
+        back_populates="target_item",
+        cascade="all, delete-orphan",
     )
 
 
@@ -53,7 +67,7 @@ class CapturedItemEnrichedContent(Base):
     item_id: Mapped[int] = mapped_column(ForeignKey("captured_items.id"), nullable=False)
     enriched_content: Mapped[str] = mapped_column(Text, nullable=False)
     provenance: Mapped[dict] = mapped_column(JSON, default=dict)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     item: Mapped[CapturedItem] = relationship(back_populates="enriched_content")
 
@@ -79,6 +93,14 @@ class ItemRelationship(Base):
     relationship_type: Mapped[str] = mapped_column(String(100), nullable=False)
     confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     provenance: Mapped[dict] = mapped_column(JSON, default=dict)
+    source_item: Mapped[CapturedItem] = relationship(
+        foreign_keys=[source_item_id],
+        back_populates="outgoing_relationships",
+    )
+    target_item: Mapped[CapturedItem] = relationship(
+        foreign_keys=[target_item_id],
+        back_populates="incoming_relationships",
+    )
 
 
 class AuditLog(Base):
@@ -89,7 +111,7 @@ class AuditLog(Base):
     action: Mapped[str] = mapped_column(String(100), nullable=False)
     actor: Mapped[str] = mapped_column(String(100), nullable=False, default="system")
     changes: Mapped[dict] = mapped_column(JSON, default=dict)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class UserConsent(Base):

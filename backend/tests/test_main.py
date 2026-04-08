@@ -1,20 +1,26 @@
 from datetime import datetime, timezone
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import create_app
 
-app = create_app("sqlite:///./test.db")
-client = TestClient(app)
+
+@pytest.fixture
+def client(tmp_path):
+    db_path = tmp_path / "test.db"
+    app = create_app(f"sqlite:///{db_path}", initialize_schema=True)
+    with TestClient(app) as test_client:
+        yield test_client
 
 
-def test_health_endpoint() -> None:
+def test_health_endpoint(client: TestClient) -> None:
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
 
 
-def test_analyze_endpoint() -> None:
+def test_analyze_endpoint(client: TestClient) -> None:
     response = client.post("/analyze", json={"note": "hello lookback platform"})
     assert response.status_code == 200
     data = response.json()
@@ -22,7 +28,7 @@ def test_analyze_endpoint() -> None:
     assert 0 <= data["score"] <= 1
 
 
-def test_create_and_update_item_and_websocket_stream() -> None:
+def test_create_and_update_item_and_websocket_stream(client: TestClient) -> None:
     with client.websocket_connect("/api/ws/timeline") as websocket:
         payload = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
