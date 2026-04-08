@@ -59,7 +59,7 @@ A real-time personal knowledge system that:
 [API Gateway - FastAPI]
         ↓
 [Ingestion Layer]
-  ├── Audio სამსახ → Transcription სამსახ
+  ├── Audio Service → Transcription Service
   ├── Screenshot → Vision Analysis
         ↓
 [Enrichment Layer]
