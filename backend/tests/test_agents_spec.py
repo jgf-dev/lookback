@@ -262,7 +262,8 @@ def test_acceptance_criteria_has_unchecked_items(spec_text: str) -> None:
         f"Expected at least 10 unchecked acceptance criteria, found {unchecked_count}"
     )
     assert checked_count == 0, (
-        f"Expected no pre-checked criteria (spec is a forward-looking plan), but found {checked_count}"
+        f"Expected no pre-checked criteria (spec is a forward-looking plan), "
+        f"but found {checked_count}"
     )
 
 
@@ -283,7 +284,8 @@ def test_acceptance_criteria_audio_latency(spec_text: str) -> None:
 
 def test_acceptance_criteria_timeline_latency(spec_text: str) -> None:
     """Timeline entry appearance latency must be stated."""
-    assert "1" in spec_text and "3 seconds" in spec_text, (
+    pattern = r"\b1\s*(?:–|-|to)\s*3\s+seconds\b"
+    assert re.search(pattern, spec_text), (
         "Timeline entry latency (1–3 seconds) not stated in spec"
     )
 
