@@ -1,8 +1,8 @@
 import asyncio
 from collections.abc import Sequence
 
+import anyio
 from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
-from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.db.session import get_async_db, get_db
@@ -23,19 +23,13 @@ def db_dependency(request: Request):
 
 
 def serialize_relationships(
-    item_id: int,
     relationships: Sequence[ItemRelationship],
 ) -> list[dict]:
     serialized: list[dict] = []
     for relation in relationships:
-        target_item_id = (
-            relation.target_item_id
-            if relation.source_item_id == item_id
-            else relation.source_item_id
-        )
         serialized.append(
             {
-                "target_item_id": target_item_id,
+                "target_item_id": relation.target_item_id,
                 "relationship_type": relation.relationship_type,
                 "confidence": relation.confidence,
                 "provenance": relation.provenance or {},
@@ -56,8 +50,21 @@ def get_item_with_content(db: Session, item_id: int) -> CapturedItem:
     return item
 
 
+def get_outbound_relationships(db: Session, item_id: int) -> list[ItemRelationship]:
+    return db.query(ItemRelationship).filter(ItemRelationship.source_item_id == item_id).all()
+
+
+def filtered_update_changes(payload: CapturedItemUpdate) -> dict:
+    raw_changes = payload.model_dump(mode="json", exclude_unset=True)
+    return {
+        key: value
+        for key, value in raw_changes.items()
+        if value is not None and value not in ({}, [])
+    }
+
+
 @router.post("/items", response_model=CapturedItemRead, status_code=201)
-async def create_item(
+def create_item(
     payload: CapturedItemCreate,
     request: Request,
     db: AsyncSession = Depends(async_db_dependency),
@@ -108,17 +115,11 @@ async def create_item(
     await db.commit()
     item = await async_get_item_with_content(db, item.id)
 
-    await request.app.state.timeline.publish({"event": "created", "item_id": item.id})
-    item_relationships = (
-        db.query(ItemRelationship)
-        .filter(
-            or_(
-                ItemRelationship.source_item_id == item.id,
-                ItemRelationship.target_item_id == item.id,
-            )
-        )
-        .all()
+    anyio.from_thread.run(
+        request.app.state.timeline.publish,
+        {"event": "created", "item_id": item.id},
     )
+    item_relationships = get_outbound_relationships(db, item.id)
     return CapturedItemRead(
         id=item.id,
         timestamp=item.timestamp,
@@ -129,7 +130,7 @@ async def create_item(
         ),
         tags=item.tags,
         inferred_project_task=item.inferred_project_task,
-        relationships=serialize_relationships(item.id, item_relationships),
+        relationships=serialize_relationships(item_relationships),
         confidence=item.confidence,
         user_edits=item.user_edits,
         provenance=item.provenance,
@@ -181,17 +182,11 @@ def update_item(
     db.commit()
     item = get_item_with_content(db, item.id)
 
-    await request.app.state.timeline.publish({"event": "updated", "item_id": item.id})
-    item_relationships = (
-        db.query(ItemRelationship)
-        .filter(
-            or_(
-                ItemRelationship.source_item_id == item.id,
-                ItemRelationship.target_item_id == item.id,
-            )
-        )
-        .all()
+    anyio.from_thread.run(
+        request.app.state.timeline.publish,
+        {"event": "updated", "item_id": item.id},
     )
+    item_relationships = get_outbound_relationships(db, item.id)
     return CapturedItemRead(
         id=item.id,
         timestamp=item.timestamp,
@@ -202,7 +197,7 @@ def update_item(
         ),
         tags=item.tags,
         inferred_project_task=item.inferred_project_task,
-        relationships=serialize_relationships(item.id, item_relationships),
+        relationships=serialize_relationships(item_relationships),
         confidence=item.confidence,
         user_edits=item.user_edits,
         provenance=item.provenance,
