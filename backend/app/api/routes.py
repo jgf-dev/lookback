@@ -86,7 +86,7 @@ def create_item(
         item.enriched_content.append(
             CapturedItemEnrichedContent(
                 enriched_content=payload.enriched_content,
-                provenance={**payload.enriched_provenance, "origin": "automated"},
+                provenance={**payload.enriched_provenance, "origin": "enrichment"},
             )
         )
 
@@ -166,7 +166,7 @@ def update_item(
         item.enriched_content.append(
             CapturedItemEnrichedContent(
                 enriched_content=payload.enriched_content,
-                provenance={**payload.enriched_provenance, "origin": "automated"},
+                provenance={**payload.enriched_provenance, "origin": "enrichment"},
             )
         )
 

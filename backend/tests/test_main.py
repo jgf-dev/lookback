@@ -185,7 +185,7 @@ def test_server_controls_origin_and_audit_log_changes(client: TestClient) -> Non
 
     assert user_content.provenance["origin"] == "user"
     assert latest_enrichment is not None
-    assert latest_enrichment.provenance["origin"] == "automated"
+    assert latest_enrichment.provenance["origin"] == "enrichment"
     assert update_audit is not None
     assert "raw_content" not in update_audit.changes
     assert "provenance" not in update_audit.changes
