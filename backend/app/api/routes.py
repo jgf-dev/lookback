@@ -3,9 +3,11 @@ from collections.abc import Sequence
 
 import anyio
 from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session, joinedload
 
-from app.db.session import get_db
+from app.db.session import get_async_db, get_db
 from app.models.db_models import (
     AuditLog,
     CapturedItem,
@@ -20,6 +22,11 @@ router = APIRouter(prefix="/api")
 
 def db_dependency(request: Request):
     yield from get_db(request.app.state.session_factory)
+
+
+async def async_db_dependency(request: Request):
+    async for db in get_async_db(request.app.state.async_session_factory):
+        yield db
 
 
 def serialize_relationships(
@@ -50,8 +57,27 @@ def get_item_with_content(db: Session, item_id: int) -> CapturedItem:
     return item
 
 
+async def async_get_item_with_content(db: AsyncSession, item_id: int) -> CapturedItem:
+    result = await db.execute(
+        select(CapturedItem)
+        .options(joinedload(CapturedItem.user_content), joinedload(CapturedItem.enriched_content))
+        .filter(CapturedItem.id == item_id)
+    )
+    item = result.scalar_one_or_none()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    return item
+
+
 def get_outbound_relationships(db: Session, item_id: int) -> list[ItemRelationship]:
     return db.query(ItemRelationship).filter(ItemRelationship.source_item_id == item_id).all()
+
+
+async def async_get_outbound_relationships(db: AsyncSession, item_id: int) -> list[ItemRelationship]:
+    result = await db.execute(
+        select(ItemRelationship).filter(ItemRelationship.source_item_id == item_id)
+    )
+    return list(result.scalars().all())
 
 
 def filtered_update_changes(payload: CapturedItemUpdate) -> dict:
@@ -64,10 +90,10 @@ def filtered_update_changes(payload: CapturedItemUpdate) -> dict:
 
 
 @router.post("/items", response_model=CapturedItemRead, status_code=201)
-def create_item(
+async def create_item(
     payload: CapturedItemCreate,
     request: Request,
-    db: Session = Depends(db_dependency),
+    db: AsyncSession = Depends(async_db_dependency),
 ):
     item = CapturedItem(
         timestamp=payload.timestamp,
@@ -91,7 +117,7 @@ def create_item(
         )
 
     db.add(item)
-    db.flush()
+    await db.flush()
 
     for relation in payload.relationships:
         db.add(
@@ -112,14 +138,13 @@ def create_item(
             changes=payload.model_dump(mode="json"),
         )
     )
-    db.commit()
-    item = get_item_with_content(db, item.id)
+    await db.commit()
+    item = await async_get_item_with_content(db, item.id)
 
-    anyio.from_thread.run(
-        request.app.state.timeline.publish,
-        {"event": "created", "item_id": item.id},
+    await request.app.state.timeline.publish(
+        {"event": "created", "item_id": item.id}
     )
-    item_relationships = get_outbound_relationships(db, item.id)
+    item_relationships = await async_get_outbound_relationships(db, item.id)
     return CapturedItemRead(
         id=item.id,
         timestamp=item.timestamp,
