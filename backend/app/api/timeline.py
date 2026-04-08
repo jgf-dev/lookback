@@ -20,5 +20,11 @@ class TimelineBroadcaster:
                 subscriber.put_nowait(event)
             except asyncio.QueueFull:
                 # Drop oldest event for slow subscribers, then enqueue latest.
-                _ = subscriber.get_nowait()
-                subscriber.put_nowait(event)
+                try:
+                    _ = subscriber.get_nowait()
+                except asyncio.QueueEmpty:
+                    continue
+                try:
+                    subscriber.put_nowait(event)
+                except asyncio.QueueFull:
+                    continue
