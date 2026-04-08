@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
@@ -41,6 +42,18 @@ def serialize_relationships(
             }
         )
     return serialized
+
+
+def get_item_with_content(db: Session, item_id: int) -> CapturedItem:
+    item = (
+        db.query(CapturedItem)
+        .options(joinedload(CapturedItem.user_content), joinedload(CapturedItem.enriched_content))
+        .filter(CapturedItem.id == item_id)
+        .first()
+    )
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    return item
 
 
 @router.post("/items", response_model=CapturedItemRead, status_code=201)
