@@ -90,8 +90,12 @@ class ItemRelationship(Base):
     __tablename__ = "item_relationships"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    source_item_id: Mapped[int] = mapped_column(ForeignKey("captured_items.id"), nullable=False)
-    target_item_id: Mapped[int] = mapped_column(ForeignKey("captured_items.id"), nullable=False)
+    source_item_id: Mapped[int] = mapped_column(
+        ForeignKey("captured_items.id"), nullable=False, index=True
+    )
+    target_item_id: Mapped[int] = mapped_column(
+        ForeignKey("captured_items.id"), nullable=False, index=True
+    )
     relationship_type: Mapped[str] = mapped_column(String(100), nullable=False)
     confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     provenance: Mapped[dict] = mapped_column(JSON, default=dict)

@@ -4,7 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import create_app
-from app.models.db_models import CapturedItemUserContent
+from app.models.db_models import AuditLog, CapturedItemEnrichedContent, CapturedItemUserContent
 
 
 @pytest.fixture
@@ -133,3 +133,59 @@ def test_update_item_recreates_missing_user_content(client: TestClient) -> None:
     )
     assert response.status_code == 200
     assert response.json()["raw_content"] == "Recovered content"
+
+
+def test_server_controls_origin_and_audit_log_changes(client: TestClient) -> None:
+    created = client.post(
+        "/api/items",
+        json={
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "source_type": "speech",
+            "raw_content": "Origin check",
+            "enriched_content": "Origin check enriched",
+            "tags": [],
+            "inferred_project_task": None,
+            "relationships": [],
+            "confidence": 0.2,
+            "user_edits": {},
+            "provenance": {"origin": "forged-user"},
+            "enriched_provenance": {"origin": "forged-enricher"},
+        },
+    )
+    assert created.status_code == 201
+    item_id = created.json()["id"]
+
+    updated = client.put(
+        f"/api/items/{item_id}",
+        json={
+            "enriched_content": "Second enrichment",
+            "enriched_provenance": {"origin": "forged-update"},
+            "tags": ["audit-only"],
+        },
+    )
+    assert updated.status_code == 200
+
+    session = client.app.state.session_factory()
+    try:
+        user_content = session.query(CapturedItemUserContent).filter_by(item_id=item_id).one()
+        latest_enrichment = (
+            session.query(CapturedItemEnrichedContent)
+            .filter_by(item_id=item_id)
+            .order_by(CapturedItemEnrichedContent.created_at.desc())
+            .first()
+        )
+        update_audit = (
+            session.query(AuditLog)
+            .filter_by(item_id=item_id, action="updated")
+            .order_by(AuditLog.id.desc())
+            .first()
+        )
+    finally:
+        session.close()
+
+    assert user_content.provenance["origin"] == "user"
+    assert latest_enrichment is not None
+    assert latest_enrichment.provenance["origin"] == "automated"
+    assert update_audit is not None
+    assert "raw_content" not in update_audit.changes
+    assert "provenance" not in update_audit.changes

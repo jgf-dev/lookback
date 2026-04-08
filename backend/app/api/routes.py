@@ -1,8 +1,8 @@
 import asyncio
 from collections.abc import Sequence
 
+import anyio
 from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
-from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.db.session import get_db
@@ -23,19 +23,13 @@ def db_dependency(request: Request):
 
 
 def serialize_relationships(
-    item_id: int,
     relationships: Sequence[ItemRelationship],
 ) -> list[dict]:
     serialized: list[dict] = []
     for relation in relationships:
-        target_item_id = (
-            relation.target_item_id
-            if relation.source_item_id == item_id
-            else relation.source_item_id
-        )
         serialized.append(
             {
-                "target_item_id": target_item_id,
+                "target_item_id": relation.target_item_id,
                 "relationship_type": relation.relationship_type,
                 "confidence": relation.confidence,
                 "provenance": relation.provenance or {},
@@ -56,8 +50,21 @@ def get_item_with_content(db: Session, item_id: int) -> CapturedItem:
     return item
 
 
+def get_outbound_relationships(db: Session, item_id: int) -> list[ItemRelationship]:
+    return db.query(ItemRelationship).filter(ItemRelationship.source_item_id == item_id).all()
+
+
+def filtered_update_changes(payload: CapturedItemUpdate) -> dict:
+    raw_changes = payload.model_dump(mode="json", exclude_unset=True)
+    return {
+        key: value
+        for key, value in raw_changes.items()
+        if value is not None and value not in ({}, [])
+    }
+
+
 @router.post("/items", response_model=CapturedItemRead, status_code=201)
-async def create_item(
+def create_item(
     payload: CapturedItemCreate,
     request: Request,
     db: Session = Depends(db_dependency),
@@ -73,13 +80,13 @@ async def create_item(
     )
     item.user_content = CapturedItemUserContent(
         raw_content=payload.raw_content,
-        provenance={"origin": "user", **payload.provenance},
+        provenance={**payload.provenance, "origin": "user"},
     )
     if payload.enriched_content:
         item.enriched_content.append(
             CapturedItemEnrichedContent(
                 enriched_content=payload.enriched_content,
-                provenance={"origin": "automated", **payload.enriched_provenance},
+                provenance={**payload.enriched_provenance, "origin": "automated"},
             )
         )
 
@@ -108,17 +115,11 @@ async def create_item(
     db.commit()
     item = get_item_with_content(db, item.id)
 
-    await request.app.state.timeline.publish({"event": "created", "item_id": item.id})
-    item_relationships = (
-        db.query(ItemRelationship)
-        .filter(
-            or_(
-                ItemRelationship.source_item_id == item.id,
-                ItemRelationship.target_item_id == item.id,
-            )
-        )
-        .all()
+    anyio.from_thread.run(
+        request.app.state.timeline.publish,
+        {"event": "created", "item_id": item.id},
     )
+    item_relationships = get_outbound_relationships(db, item.id)
     return CapturedItemRead(
         id=item.id,
         timestamp=item.timestamp,
@@ -129,7 +130,7 @@ async def create_item(
         ),
         tags=item.tags,
         inferred_project_task=item.inferred_project_task,
-        relationships=serialize_relationships(item.id, item_relationships),
+        relationships=serialize_relationships(item_relationships),
         confidence=item.confidence,
         user_edits=item.user_edits,
         provenance=item.provenance,
@@ -137,7 +138,7 @@ async def create_item(
 
 
 @router.put("/items/{item_id}", response_model=CapturedItemRead)
-async def update_item(
+def update_item(
     item_id: int,
     payload: CapturedItemUpdate,
     request: Request,
@@ -149,7 +150,7 @@ async def update_item(
         if item.user_content is None:
             item.user_content = CapturedItemUserContent(
                 raw_content=payload.raw_content,
-                provenance={"origin": "user", **(payload.provenance or {})},
+                provenance={**(payload.provenance or {}), "origin": "user"},
             )
         else:
             item.user_content.raw_content = payload.raw_content
@@ -165,32 +166,27 @@ async def update_item(
         item.enriched_content.append(
             CapturedItemEnrichedContent(
                 enriched_content=payload.enriched_content,
-                provenance={"origin": "automated", **payload.enriched_provenance},
+                provenance={**payload.enriched_provenance, "origin": "automated"},
             )
         )
 
+    audit_changes = filtered_update_changes(payload)
     db.add(
         AuditLog(
             item_id=item.id,
             action="updated",
             actor="api",
-            changes=payload.model_dump(mode="json"),
+            changes=audit_changes,
         )
     )
     db.commit()
     item = get_item_with_content(db, item.id)
 
-    await request.app.state.timeline.publish({"event": "updated", "item_id": item.id})
-    item_relationships = (
-        db.query(ItemRelationship)
-        .filter(
-            or_(
-                ItemRelationship.source_item_id == item.id,
-                ItemRelationship.target_item_id == item.id,
-            )
-        )
-        .all()
+    anyio.from_thread.run(
+        request.app.state.timeline.publish,
+        {"event": "updated", "item_id": item.id},
     )
+    item_relationships = get_outbound_relationships(db, item.id)
     return CapturedItemRead(
         id=item.id,
         timestamp=item.timestamp,
@@ -201,7 +197,7 @@ async def update_item(
         ),
         tags=item.tags,
         inferred_project_task=item.inferred_project_task,
-        relationships=serialize_relationships(item.id, item_relationships),
+        relationships=serialize_relationships(item_relationships),
         confidence=item.confidence,
         user_edits=item.user_edits,
         provenance=item.provenance,
