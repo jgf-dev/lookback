@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
@@ -41,6 +42,18 @@ def serialize_relationships(
             }
         )
     return serialized
+
+
+def get_item_with_content(db: Session, item_id: int) -> CapturedItem:
+    item = (
+        db.query(CapturedItem)
+        .options(joinedload(CapturedItem.user_content), joinedload(CapturedItem.enriched_content))
+        .filter(CapturedItem.id == item_id)
+        .first()
+    )
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    return item
 
 
 @router.post("/items", response_model=CapturedItemRead, status_code=201)
@@ -93,7 +106,7 @@ async def create_item(
         )
     )
     db.commit()
-    db.refresh(item)
+    item = get_item_with_content(db, item.id)
 
     await request.app.state.timeline.publish({"event": "created", "item_id": item.id})
     item_relationships = (
@@ -130,17 +143,16 @@ async def update_item(
     request: Request,
     db: Session = Depends(db_dependency),
 ):
-    item = (
-        db.query(CapturedItem)
-        .options(joinedload(CapturedItem.user_content), joinedload(CapturedItem.enriched_content))
-        .filter(CapturedItem.id == item_id)
-        .first()
-    )
-    if not item:
-        raise HTTPException(status_code=404, detail="Item not found")
+    item = get_item_with_content(db, item_id)
 
     if payload.raw_content is not None:
-        item.user_content.raw_content = payload.raw_content
+        if item.user_content is None:
+            item.user_content = CapturedItemUserContent(
+                raw_content=payload.raw_content,
+                provenance={"origin": "user", **(payload.provenance or {})},
+            )
+        else:
+            item.user_content.raw_content = payload.raw_content
     if payload.tags is not None:
         item.tags = payload.tags
     if payload.confidence is not None:
@@ -153,7 +165,7 @@ async def update_item(
         item.enriched_content.append(
             CapturedItemEnrichedContent(
                 enriched_content=payload.enriched_content,
-                provenance={"origin": "automated", **(payload.provenance or {})},
+                provenance={"origin": "automated", **payload.enriched_provenance},
             )
         )
 
@@ -166,7 +178,7 @@ async def update_item(
         )
     )
     db.commit()
-    db.refresh(item)
+    item = get_item_with_content(db, item.id)
 
     await request.app.state.timeline.publish({"event": "updated", "item_id": item.id})
     item_relationships = (
@@ -202,8 +214,20 @@ async def timeline_stream(websocket: WebSocket) -> None:
     queue = websocket.app.state.timeline.subscribe()
     try:
         while True:
-            event = await queue.get()
-            await websocket.send_json(event)
+            next_event = asyncio.create_task(queue.get())
+            disconnect_probe = asyncio.create_task(websocket.receive())
+            done, pending = await asyncio.wait(
+                {next_event, disconnect_probe},
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            for task in pending:
+                task.cancel()
+            if next_event in done:
+                await websocket.send_json(next_event.result())
+            elif disconnect_probe in done:
+                message = disconnect_probe.result()
+                if message.get("type") == "websocket.disconnect":
+                    break
     except WebSocketDisconnect:
         pass
     finally:

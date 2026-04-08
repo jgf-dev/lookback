@@ -80,6 +80,16 @@ def upgrade() -> None:
         sa.Column("confidence", sa.Float(), nullable=True),
         sa.Column("provenance", sa.JSON(), nullable=False),
     )
+    op.create_index(
+        "ix_item_relationships_source_item_id",
+        "item_relationships",
+        ["source_item_id"],
+    )
+    op.create_index(
+        "ix_item_relationships_target_item_id",
+        "item_relationships",
+        ["target_item_id"],
+    )
 
     op.create_table(
         "audit_logs",
@@ -107,6 +117,8 @@ def downgrade() -> None:
     op.drop_index("ix_user_consent_records_user_id", table_name="user_consent_records")
     op.drop_table("user_consent_records")
     op.drop_table("audit_logs")
+    op.drop_index("ix_item_relationships_target_item_id", table_name="item_relationships")
+    op.drop_index("ix_item_relationships_source_item_id", table_name="item_relationships")
     op.drop_table("item_relationships")
     op.drop_index("ix_attachments_item_id", table_name="attachments")
     op.drop_table("attachments")

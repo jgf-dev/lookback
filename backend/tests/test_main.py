@@ -4,6 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import create_app
+from app.models.db_models import CapturedItemUserContent
 
 
 @pytest.fixture
@@ -85,6 +86,7 @@ def test_create_and_update_item_and_websocket_stream(client: TestClient) -> None
             json={
                 "raw_content": "Updated user note",
                 "enriched_content": "Updated automated enrichment",
+                "enriched_provenance": {"provider": "unit-test-enricher"},
                 "tags": ["planning", "updated"],
                 "confidence": 0.95,
                 "provenance": {"updated_by": "api_test"},
@@ -98,3 +100,36 @@ def test_create_and_update_item_and_websocket_stream(client: TestClient) -> None
         assert updated["raw_content"] == "Updated user note"
         assert updated["enriched_content"] == "Updated automated enrichment"
         assert updated["relationships"][0]["target_item_id"] == target_item["id"]
+    assert len(client.app.state.timeline._subscribers) == 0
+
+
+def test_update_item_recreates_missing_user_content(client: TestClient) -> None:
+    payload = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "source_type": "manual_note",
+        "raw_content": "Original",
+        "tags": [],
+        "inferred_project_task": None,
+        "relationships": [],
+        "confidence": 0.5,
+        "user_edits": {},
+        "provenance": {"captured_by": "keyboard"},
+        "enriched_provenance": {},
+    }
+    created = client.post("/api/items", json=payload).json()
+
+    session = client.app.state.session_factory()
+    try:
+        session.query(CapturedItemUserContent).filter(
+            CapturedItemUserContent.item_id == created["id"]
+        ).delete()
+        session.commit()
+    finally:
+        session.close()
+
+    response = client.put(
+        f"/api/items/{created['id']}",
+        json={"raw_content": "Recovered content", "provenance": {"updated_by": "test"}},
+    )
+    assert response.status_code == 200
+    assert response.json()["raw_content"] == "Recovered content"

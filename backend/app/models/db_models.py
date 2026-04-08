@@ -30,7 +30,9 @@ class CapturedItem(Base):
         back_populates="item", uselist=False, cascade="all, delete-orphan"
     )
     enriched_content: Mapped[list["CapturedItemEnrichedContent"]] = relationship(
-        back_populates="item", cascade="all, delete-orphan"
+        back_populates="item",
+        cascade="all, delete-orphan",
+        order_by="CapturedItemEnrichedContent.created_at.asc()",
     )
     attachments: Mapped[list["Attachment"]] = relationship(
         back_populates="item", cascade="all, delete-orphan"

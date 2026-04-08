@@ -31,6 +31,7 @@ class CapturedItemCreate(CapturedItemBase):
 class CapturedItemUpdate(BaseModel):
     raw_content: str | None = None
     enriched_content: str | None = None
+    enriched_provenance: dict[str, Any] = Field(default_factory=dict)
     tags: list[str] | None = None
     confidence: float | None = None
     user_edits: dict[str, Any] | None = None
