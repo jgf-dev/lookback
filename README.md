@@ -25,7 +25,7 @@ See `docs/architecture.md` for full detail. High-level flow:
 
 ### Prerequisites
 
-- Python 3.11+
+- Python 3.10+
 - Node.js 22+
 - npm 10+
 
