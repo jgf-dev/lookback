@@ -3,7 +3,6 @@ from collections.abc import Sequence
 
 import anyio
 from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
-from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.db.session import get_db
