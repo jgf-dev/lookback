@@ -16,6 +16,20 @@ depends_on = None
 
 
 def upgrade() -> None:
+    """
+    Create the initial database schema for the application.
+    
+    Creates tables and indexes required for captured item storage and related data: 
+    - captured_items: primary table for captured records with timestamps, source, tags, provenance, and audit timestamps.
+    - captured_item_user_content: one-to-one user-provided raw content for a captured item.
+    - captured_item_enriched_content: enriched/generated content for a captured item with creation timestamp.
+    - attachments: attachments related to captured items with type, URI, and optional metadata.
+    - item_relationships: directed relationships between captured items with relationship type, optional confidence, and provenance.
+    - audit_logs: action records referencing captured items, actor, change payload, and timestamp.
+    - user_consent_records: user consent entries with consent type, granted flag, timestamp, and provenance.
+    
+    Also creates indexes on captured_items.id and user_consent_records.user_id.
+    """
     op.create_table(
         "captured_items",
         sa.Column("id", sa.Integer(), primary_key=True),
@@ -100,6 +114,11 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """
+    Reverts the database schema created by this migration.
+    
+    Drops the index on user_consent_records.user_id, removes the tables created for user_consent_records, audit_logs, item_relationships, attachments, captured_item_enriched_content, and captured_item_user_content, then drops the index on captured_items.id and finally removes the captured_items table.
+    """
     op.drop_index("ix_user_consent_records_user_id", table_name="user_consent_records")
     op.drop_table("user_consent_records")
     op.drop_table("audit_logs")

@@ -15,6 +15,11 @@ target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
+    """
+    Configure Alembic to emit SQL for migrations without a live database connection and run the migration generation using the module's target metadata.
+    
+    Reads the `sqlalchemy.url` option from the Alembic config, sets up the migration context to embed literal bind values and use named parameter style, begins a migration transaction scope, and invokes Alembic to produce the SQL migration output.
+    """
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
@@ -28,6 +33,11 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
+    """
+    Run Alembic migrations in online mode against a live database connection.
+    
+    Configures Alembic with a SQLAlchemy connection and the module's target metadata, then executes migrations inside a transaction.
+    """
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",

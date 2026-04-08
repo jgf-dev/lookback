@@ -15,6 +15,11 @@ def test_health_endpoint() -> None:
 
 
 def test_analyze_endpoint() -> None:
+    """
+    Verifies the /analyze endpoint processes a note and returns a summary and a normalized score.
+    
+    Sends a POST to /analyze with a sample note and asserts the response status is 200, the `summary` begins with "Processed note", and `score` is between 0 and 1 inclusive.
+    """
     response = client.post("/analyze", json={"note": "hello lookback platform"})
     assert response.status_code == 200
     data = response.json()
@@ -23,6 +28,11 @@ def test_analyze_endpoint() -> None:
 
 
 def test_create_and_update_item_and_websocket_stream() -> None:
+    """
+    Test that creating and updating an item produces the expected HTTP responses and corresponding websocket events.
+    
+    Sends a POST to create an item, verifies the response is 201 and that the websocket receives a "created" event with the created item's id and matching content, then sends a PUT to update that item, verifies the response is 200 and that the websocket receives an "updated" event with the same item id and the updated content.
+    """
     with client.websocket_connect("/api/ws/timeline") as websocket:
         payload = {
             "timestamp": datetime.now(timezone.utc).isoformat(),

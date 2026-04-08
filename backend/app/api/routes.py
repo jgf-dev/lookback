@@ -15,6 +15,12 @@ router = APIRouter(prefix="/api")
 
 
 def db_dependency(request: Request):
+    """
+    Provide a database session from the application's session factory for use as a FastAPI dependency.
+    
+    Returns:
+        Session: A SQLAlchemy `Session` instance yielded from `request.app.state.session_factory`.
+    """
     yield from get_db(request.app.state.session_factory)
 
 
@@ -24,6 +30,18 @@ async def create_item(
     request: Request,
     db: Session = Depends(db_dependency),
 ):
+    """
+    Create a new CapturedItem with its user content, optional enriched content, relationships, and an audit log entry, then publish a "created" timeline event.
+    
+    The function persists a CapturedItem, its CapturedItemUserContent, any CapturedItemEnrichedContent provided, one ItemRelationship per entry in `payload.relationships`, and an AuditLog; it commits the transaction and publishes a timeline event via `request.app.state.timeline`.
+    
+    Parameters:
+        payload (CapturedItemCreate): Data used to populate the created item, its content, and relationships.
+        request (Request): FastAPI request object; used to access application state for publishing the timeline event.
+    
+    Returns:
+        CapturedItemRead: Representation of the newly created item. `enriched_content` is the most recent enriched entry if present, otherwise `None`. Relationships mirror `payload.relationships`.
+    """
     item = CapturedItem(
         timestamp=payload.timestamp,
         source_type=payload.source_type,
@@ -95,6 +113,20 @@ async def update_item(
     request: Request,
     db: Session = Depends(db_dependency),
 ):
+    """
+    Update fields of an existing captured item, record the change in the audit log, publish an "updated" timeline event, and return the item's current representation.
+    
+    Parameters:
+        item_id (int): ID of the item to update.
+        payload (CapturedItemUpdate): Fields to apply; only non-None fields are applied. If `enriched_content` is provided, a new enriched content entry is appended.
+        request (Request): FastAPI request (used to access application state for timeline publishing).
+    
+    Returns:
+        CapturedItemRead: The updated item representation. `enriched_content` will be the most recent enriched entry if any, otherwise `None`.
+    
+    Raises:
+        HTTPException: 404 if the item with `item_id` does not exist.
+    """
     item = (
         db.query(CapturedItem)
         .options(joinedload(CapturedItem.user_content), joinedload(CapturedItem.enriched_content))
@@ -153,6 +185,14 @@ async def update_item(
 
 @router.websocket("/ws/timeline")
 async def timeline_stream(websocket: WebSocket) -> None:
+    """
+    Stream timeline events to the connected WebSocket client until the client disconnects.
+    
+    Subscribes to the application's timeline, reads events from the subscription queue, and sends each event to the client as JSON. Unsubscribes from the timeline when the WebSocket disconnects.
+    
+    Parameters:
+        websocket (WebSocket): The active client WebSocket connection.
+    """
     await websocket.accept()
     queue = websocket.app.state.timeline.subscribe()
     try:
