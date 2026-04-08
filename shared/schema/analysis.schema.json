@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lookback.local/schemas/analysis.schema.json",
+  "title": "Analysis Contracts",
+  "type": "object",
+  "definitions": {
+    "AnalysisRequest": {
+      "type": "object",
+      "properties": {
+        "note": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["note"],
+      "additionalProperties": false
+    },
+    "AnalysisResponse": {
+      "type": "object",
+      "properties": {
+        "summary": { "type": "string" },
+        "score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "required": ["summary", "score"],
+      "additionalProperties": false
+    }
+  }
+}
