@@ -1,0 +1,10 @@
+{
+  "plugins": {
+    "agent-compatibility": {
+      "enabled": true
+    },
+    "continual-learning": {
+      "enabled": true
+    }
+  }
+}

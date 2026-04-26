@@ -6,6 +6,8 @@ import anyio
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session, joinedload
 
+from app.api.auth import require_auth
+from app.api.consent import require_data_capture_consent
 from app.db.session import get_db
 from app.models.db_models import (
     AuditLog,
@@ -14,7 +16,7 @@ from app.models.db_models import (
     CapturedItemUserContent,
     ItemRelationship,
 )
-from app.models.schemas import CapturedItemCreate, CapturedItemRead, CapturedItemUpdate
+from app.models.schemas import AuditLogRead, CapturedItemCreate, CapturedItemRead, CapturedItemUpdate
 
 router = APIRouter(prefix="/api")
 
