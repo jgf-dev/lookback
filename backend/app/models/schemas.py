@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class RelationshipCreate(BaseModel):
@@ -42,3 +42,34 @@ class CapturedItemRead(CapturedItemBase):
     id: int
     raw_content: str
     enriched_content: str | None = None
+
+
+# ─── Consent ─────────────────────────────────────────────────────────────────
+
+
+class ConsentCreate(BaseModel):
+    consent_type: str
+    granted: bool
+
+
+class ConsentRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    user_id: str
+    consent_type: str
+    granted: bool
+    timestamp: datetime
+
+
+# ─── Audit log ───────────────────────────────────────────────────────────────
+
+
+class AuditLogRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    item_id: int | None = None
+    action: str
+    actor: str
+    changes: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime
