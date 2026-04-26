@@ -19,7 +19,9 @@ def spec_text() -> str:
     try:
         return AGENTS_MD.read_text(encoding="utf-8")
     except (FileNotFoundError, OSError) as e:
-        pytest.skip(f"AGENTS.md not available: {e}")
+        message = f"AGENTS.md not available: {e}"
+        pytest.skip(message)
+        raise pytest.skip.Exception(message)
 
 
 # ---------------------------------------------------------------------------
