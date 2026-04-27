@@ -1,6 +1,5 @@
 import pytest
 from pydantic import ValidationError
-
 from shared.python.contracts import AnalysisRequest, AnalysisResponse
 
 
