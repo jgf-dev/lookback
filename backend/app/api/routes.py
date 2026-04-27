@@ -166,6 +166,9 @@ async def update_item(
     db.refresh(item)
 
     await request.app.state.timeline.publish({"event": "updated", "item_id": item.id})
+    item_relationships = (
+        db.query(ItemRelationship).filter(ItemRelationship.source_item_id == item_id).all()
+    )
     return CapturedItemRead(
         id=item.id,
         timestamp=item.timestamp,
@@ -176,11 +179,19 @@ async def update_item(
         ),
         tags=item.tags,
         inferred_project_task=item.inferred_project_task,
-        relationships=[],
+        relationships=[
+            {
+                "target_item_id": r.target_item_id,
+                "relationship_type": r.relationship_type,
+                "confidence": r.confidence,
+                "provenance": r.provenance or {},
+            }
+            for r in item_relationships
+        ],
         confidence=item.confidence,
         user_edits=item.user_edits,
         provenance=item.provenance,
-    )
+
 
 
 @router.websocket("/ws/timeline")
