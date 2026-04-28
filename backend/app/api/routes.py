@@ -2,12 +2,18 @@ import asyncio
 from collections.abc import Sequence
 
 import anyio
-from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Request,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session, joinedload
 
-from app.db.session import get_async_db, get_db
 from app.db.session import get_async_db, get_db
 from app.models.db_models import (
     AuditLog,

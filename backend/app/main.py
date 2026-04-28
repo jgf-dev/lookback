@@ -7,6 +7,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.append(str(PROJECT_ROOT))
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from shared.python.contracts import AnalysisRequest, AnalysisResponse
 
 from app.api.routes import router as api_router
@@ -24,6 +25,24 @@ def create_app(
     initialize_schema: bool = False,
 ) -> FastAPI:
     app = FastAPI(title="lookback-backend", version="0.1.0")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+        ],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    engine, session_factory = create_engine_and_session_factory(database_url)
+    async_engine, async_session_factory = create_async_engine_and_session_factory(database_url)
+    app.state.session_factory = session_factory
+    app.state.async_session_factory = async_session_factory
+    app.state.timeline = TimelineBroadcaster()
+    if initialize_schema:
+        Base.metadata.create_all(bind=engine)
 
     engine, session_factory = create_engine_and_session_factory(database_url)
     async_engine, async_session_factory = create_async_engine_and_session_factory(database_url)
