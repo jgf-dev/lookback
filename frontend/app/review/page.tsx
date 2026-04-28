@@ -222,7 +222,7 @@ export default function ReviewPage() {
             )}
 
             {/* Empty state */}
-            {review.next_actions.length === 0 && review.voice_review_script.includes('0') && (
+            {review.next_actions.length === 0 && (
               <p style={{ color: '#9ca3af', textAlign: 'center', padding: 16 }}>
                 No items captured today yet. Head back to the timeline to add some.
               </p>
