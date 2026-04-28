@@ -29,6 +29,7 @@ def test_timeline_broadcaster_drops_oldest_when_queue_is_full() -> None:
     queue = broadcaster.subscribe()
 
     import asyncio
+    import pytest
 
     async def _publish_two() -> None:
         await broadcaster.publish({"event": "first"})
@@ -36,3 +37,5 @@ def test_timeline_broadcaster_drops_oldest_when_queue_is_full() -> None:
 
     asyncio.run(_publish_two())
     assert queue.get_nowait() == {"event": "second"}
+    with pytest.raises(asyncio.QueueEmpty):
+        queue.get_nowait()
