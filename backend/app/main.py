@@ -44,6 +44,14 @@ def create_app(
     if initialize_schema:
         Base.metadata.create_all(bind=engine)
 
+    engine, session_factory = create_engine_and_session_factory(database_url)
+    async_engine, async_session_factory = create_async_engine_and_session_factory(database_url)
+    app.state.session_factory = session_factory
+    app.state.async_session_factory = async_session_factory
+    app.state.timeline = TimelineBroadcaster()
+    if initialize_schema:
+        Base.metadata.create_all(bind=engine)
+
     @app.get("/health")
     def health() -> dict[str, str]:
         return {"status": "ok", "service": "backend"}
