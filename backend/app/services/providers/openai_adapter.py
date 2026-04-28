@@ -80,7 +80,10 @@ def reason_about_text(text: str, system_prompt: str | None = None) -> dict:
         response_format={"type": "json_object"},
     )
 
-    raw = response.choices[0].message.content or "{}"
+    if response and response.choices and len(response.choices) > 0:
+        raw = response.choices[0].message.content or "{}"
+    else:
+        raw = "{}"
     try:
         parsed = json.loads(raw)
     except json.JSONDecodeError:
